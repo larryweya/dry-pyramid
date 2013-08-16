@@ -82,6 +82,7 @@ def group_finder(user_id, request):
 
 class User(Base):
     __tablename__ = 'user'
+    __pluralized__ = 'users'
     id = Column(Integer, primary_key=True)
     account_id = Column(String(100), unique=True, nullable=False)
     password = Column(String(100), nullable=False)
@@ -132,11 +133,15 @@ class User(Base):
 
 class Group(Base):
     __tablename__ = 'group'
+    __pluralized__ = 'groups'
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
 
 
 class ModelFactory(object):
+    __name__ = None
+    __parent__ = None
+
     def __init__(self, request):
         self.request = request
 
