@@ -5,7 +5,6 @@ from pyramid.httpexceptions import (
 from pyramid.security import (
     remember,
     forget,
-    authenticated_userid,
 )
 from deform import Form, ValidationFailure, Button
 from sqlalchemy.exc import IntegrityError
@@ -103,7 +102,8 @@ def user_login(context, request):
     else:
         request.response.status_code = 403
     came_from = request.session.get('came_from', referrer)
-    form = Form(UserLoginForm(), buttons=('login',))
+    form = Form(UserLoginForm(),
+                action=request.route_url('login'), buttons=('login',))
     if request.method == 'POST':
         data = request.POST.items()
         try:
