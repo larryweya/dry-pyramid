@@ -51,8 +51,8 @@ class PersonModelFactory(ModelFactory):
 
 class TestBase(unittest.TestCase):
     def setUp(self):
-        config = testing.setUp()
-        config.add_route('site', '/*traverse')
+        self.config = testing.setUp()
+        self.config.add_route('site', '/*traverse')
         engine = create_engine('sqlite:///:memory:', echo=True)
         SASession.configure(bind=engine)
         Base.metadata.create_all(engine)
