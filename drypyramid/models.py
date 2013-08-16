@@ -140,19 +140,23 @@ class ModelFactory(object):
     def __init__(self, request):
         self.request = request
 
-    def __getitem__(self, item):
-        pass
-
     def __getitem__(self, key):
         try:
-            record = self.model.query().filter_by(
+            record = self.ModelClass.query().filter_by(
                 id=key).one()
         except NoResultFound:
             raise KeyError
         else:
             record.__parent__ = self
             record.__name__ = key
+            self.on_get_item(record)
             return record
 
-    def create_url(self, request):
-        return request.route_url('site', traverse=('customers', 'add'))
+    def on_get_item(self, item):
+        """Called after __getitem__ to manipulate the returned item e.g. attach
+        ACL"""
+        pass
+
+    def create_url(self, request, action_name='add'):
+        return request.route_url(
+            'site', traverse=(self.ModelClass.__pluralized__, action_name))
