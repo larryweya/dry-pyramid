@@ -9,7 +9,7 @@ from pyramid.security import (
 from deform import Form, ValidationFailure, Button
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
-from .models import SASession, User
+from .models import SASession, BaseUser
 from .forms import UserLoginForm
 
 
@@ -98,7 +98,8 @@ def user_login(context, request):
     login_url = request.route_url('login')
     referrer = request.url
     if referrer == login_url:
-        referrer = request.route_url('default') # never use the login form itself as came_from
+        # never use the login form itself as came_from
+        referrer = request.route_url('default')
     else:
         request.response.status_code = 403
     came_from = request.session.get('came_from', referrer)
@@ -114,7 +115,8 @@ def user_login(context, request):
         else:
             account_id = values['account_id']
             try:
-                user = User.query().filter(User.account_id == account_id).one()
+                user = BaseUser.query().filter(
+                    BaseUser.account_id == account_id).one()
                 # todo: check password
             except NoResultFound:
                 request.session.flash(

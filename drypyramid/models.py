@@ -14,15 +14,8 @@ from sqlalchemy.orm import (
     sessionmaker,
     relationship,
 )
-from pyramid.security import (
-    Allow,
-    Deny,
-    Everyone,
-    Authenticated,
-    ALL_PERMISSIONS,
-    DENY_ALL,
-)
 from zope.sqlalchemy import ZopeTransactionExtension
+from slugify import slugify
 from .auth import pwd_context
 
 SASession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
@@ -68,10 +61,42 @@ user_group = Table(
 )
 
 
+def generate_slug(column, value, unique_query):
+    i = 0
+    base_slug = slugify(value)
+    slug = base_slug
+    while unique_query.filter(column == slug).count() > 0:
+        i += 1
+        slug = "{0}-{1}".format(base_slug, i)
+    return slug
+
+
+def set_slug(mapper, connection, target):
+    target_column = mapper.class_.slug_target_column()
+    source_column = mapper.class_.slug_source_column()
+    slug = generate_slug(
+        target_column, target.__getattribute__(
+            source_column.name), target.slug_unique_query())
+    target.__setattr__(target_column.name, slug)
+
+
+class Slugable(object):
+    def slug_unique_query(self):
+        raise NotImplementedError
+
+    @classmethod
+    def slug_target_column(cls):
+        return cls.slug
+
+    @classmethod
+    def slug_source_column(cls):
+        return cls.name
+
+
 def group_finder(user_id, request):
     try:
         # todo: join with groups
-        user = User.query().filter(User.id == user_id).one()
+        user = BaseUser.query().filter(BaseUser.id == user_id).one()
     except NoResultFound:
         return None
     else:
@@ -80,12 +105,12 @@ def group_finder(user_id, request):
         return groups
 
 
-class User(Base):
+class BaseUser(Base):
     __tablename__ = 'user'
     __pluralized__ = 'users'
     id = Column(Integer, primary_key=True)
     account_id = Column(String(100), unique=True, nullable=False)
-    password = Column(String(100), nullable=False)
+    password = Column(String, nullable=False)
     is_active = Column(Boolean(), nullable=False, default=False)
     groups = relationship('Group', secondary=user_group, backref='users')
 
@@ -99,7 +124,7 @@ class User(Base):
         return request.route_url('site', traverse=('users', self.id, 'delete'))
 
     def to_dict(self):
-        data = super(User, self).to_dict()
+        data = super(BaseUser, self).to_dict()
         # password can only be set, not edited
         data['password'] = None
         data['group_names'] = self.group_names
@@ -113,7 +138,7 @@ class User(Base):
         elif has_password:
             # encrypt
             data['password'] = pwd_context.encrypt(data['password'])
-        super(User, self).update_from_dict(data)
+        super(BaseUser, self).update_from_dict(data)
 
     @property
     def group_names(self):
@@ -121,7 +146,7 @@ class User(Base):
 
     @group_names.setter
     def group_names(self, values):
-        # todo: check if groups names have changed
+        # todo: check if groups names have changed to optimise
         # get groups in values
         groups = Group.query().filter(
             Group.name.in_(values)).all()
@@ -152,6 +177,11 @@ class ModelFactory(object):
         except NoResultFound:
             raise KeyError
         else:
+            self.request.breadcrumbs = [{
+                'title': self.ModelClass.__pluralized__,
+                'url' : self.request.route_url(
+                    'site', traverse=(self.ModelClass.__pluralized__, key))
+            }]
             record.__parent__ = self
             record.__name__ = key
             self.on_get_item(record)
@@ -165,3 +195,26 @@ class ModelFactory(object):
     def create_url(self, request, action_name='add'):
         return request.route_url(
             'site', traverse=(self.ModelClass.__pluralized__, action_name))
+
+
+class BaseUserFactory(ModelFactory):
+    ModelClass = BaseUser
+
+
+class BaseRootFactory(object):
+    __acl__ = []
+    __factories__ = {}
+
+    def __init__(self, request):
+        self.request = request
+
+    def __getitem__(self, key):
+        try:
+            factory = self.__factories__[key]
+        except KeyError:
+            raise
+        else:
+            item = factory(self.request)
+            item.__name__ = key
+            item.__parent__ = self
+            return item
