@@ -63,7 +63,7 @@ def model_create(model, schema):
                 #else:
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.update_url(request))
+                return HTTPFound(record.show_url(request))
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return create
@@ -87,7 +87,7 @@ def model_update(model, schema):
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.update_url(request))
+                return HTTPFound(record.show_url(request))
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return update
