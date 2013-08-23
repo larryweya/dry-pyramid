@@ -56,14 +56,14 @@ def model_create(model, schema):
             else:
                 record = model.create_from_dict(dict(values))
                 record.save()
-                try:
-                    SASession.flush()
-                except IntegrityError:
-                    request.session.flash("A duplicate record exists", "error")
-                else:
-                    request.session.flash(
-                        u"Your changes have been saved.", "success")
-                    return HTTPFound(record.update_url(request))
+                #try:
+                SASession.flush()
+                #except IntegrityError:
+                #    request.session.flash("A duplicate record exists", "error")
+                #else:
+                request.session.flash(
+                    u"Your changes have been saved.", "success")
+                return HTTPFound(record.update_url(request))
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return create

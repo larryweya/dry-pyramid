@@ -45,11 +45,17 @@ class Model(object):
     def update_from_dict(self, data):
         [setattr(self, key, data.get(key)) for key in data]
 
+    def show_url(self, request):
+        return request.route_url(
+            'site', traverse=(self.__tablename__, self.id))
+
     def update_url(self, request):
-        raise NotImplementedError()
+        return request.route_url(
+            'site', traverse=(self.__tablename__, self.id, 'edit'))
 
     def delete_url(self, request):
-        raise NotImplementedError()
+        return request.route_url(
+            'site', traverse=(self.__tablename__, self.id, 'delete'))
 
 
 Base = declarative_base(cls=Model)
@@ -107,10 +113,9 @@ def group_finder(user_id, request):
 
 class BaseUser(Base):
     __tablename__ = 'user'
-    __pluralized__ = 'users'
     id = Column(Integer, primary_key=True)
     account_id = Column(String(100), unique=True, nullable=False)
-    password = Column(String, nullable=False)
+    password = Column(String(255), nullable=False)
     is_active = Column(Boolean(), nullable=False, default=False)
     groups = relationship('Group', secondary=user_group, backref='users')
 
@@ -158,7 +163,6 @@ class BaseUser(Base):
 
 class Group(Base):
     __tablename__ = 'group'
-    __pluralized__ = 'groups'
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
 
@@ -177,11 +181,6 @@ class ModelFactory(object):
         except NoResultFound:
             raise KeyError
         else:
-            self.request.breadcrumbs = [{
-                'title': self.ModelClass.__pluralized__,
-                'url' : self.request.route_url(
-                    'site', traverse=(self.ModelClass.__pluralized__, key))
-            }]
             record.__parent__ = self
             record.__name__ = key
             self.on_get_item(record)
@@ -194,7 +193,7 @@ class ModelFactory(object):
 
     def create_url(self, request, action_name='add'):
         return request.route_url(
-            'site', traverse=(self.ModelClass.__pluralized__, action_name))
+            'site', traverse=(self.ModelClass.__tablename__, action_name))
 
 
 class BaseUserFactory(ModelFactory):
