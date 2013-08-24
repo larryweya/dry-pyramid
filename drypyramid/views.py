@@ -44,7 +44,7 @@ def model_create(model, schema):
     #schema = model.get_schema()
 
     def create(context, request):
-        form = Form(schema.__call__(), buttons=(
+        form = Form(schema.__call__().bind(), buttons=(
             "save", Button('reset', "Reset", 'reset')))
         if request.method == 'POST':
             data = request.POST.items()
