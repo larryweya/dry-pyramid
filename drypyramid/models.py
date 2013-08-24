@@ -153,15 +153,15 @@ class BaseUser(Base):
     def group_names(self, values):
         # todo: check if groups names have changed to optimise
         # get groups in values
-        groups = Group.query().filter(
-            Group.name.in_(values)).all()
+        groups = BaseGroup.query().filter(
+            BaseGroup.name.in_(values)).all()
         # delete all associations !IMPORTANT: done after the filter so our
         # changes aren't overwritten by the query results
         self.groups = []
         self.groups.extend(groups)
 
 
-class Group(Base):
+class BaseGroup(Base):
     __tablename__ = 'groups'
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
@@ -201,7 +201,7 @@ class BaseUserFactory(ModelFactory):
 
 
 class BaseGroupFactory(ModelFactory):
-    ModelClass = Group
+    ModelClass = BaseGroup
 
 
 class BaseRootFactory(object):
