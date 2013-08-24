@@ -200,6 +200,10 @@ class BaseUserFactory(ModelFactory):
     ModelClass = BaseUser
 
 
+class BaseGroupFactory(ModelFactory):
+    ModelClass = Group
+
+
 class BaseRootFactory(object):
     __acl__ = []
     __factories__ = {}
