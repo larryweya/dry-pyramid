@@ -72,7 +72,7 @@ def model_create(model, schema):
 def model_update(model, schema):
     def update(context, request):
         record = context
-        form = Form(schema.__call__(),
+        form = Form(schema.__call__().bind(),
                     buttons=("save", Button('reset', "Reset", 'reset')),
                     appstruct=record.to_dict())
         if request.method == 'POST':
