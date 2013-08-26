@@ -117,7 +117,7 @@ class BaseUser(Base):
     account_id = Column(String(100), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
     is_active = Column(Boolean(), nullable=False, default=False)
-    groups = relationship('Group', secondary=user_group, backref='users')
+    groups = relationship('BaseGroup', secondary=user_group, backref='users')
 
     def check_password(self):
         raise NotImplementedError()
