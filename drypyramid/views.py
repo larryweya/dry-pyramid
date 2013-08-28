@@ -93,6 +93,81 @@ def model_update(model, schema):
     return update
 
 
+def model_delete(factory):
+    def delete(context, request):
+        record = context
+        record.delete()
+        request.session.flash(
+            u"The record has been deleted.", "success")
+        return HTTPFound(factory(request).list_url(request))
+    return delete
+
+
+class ModelView(object):
+    ModelFactoryClass = None
+    ModelFormClass = None
+    ModelUpdateFormClass = None
+
+    enabled_views = ('list', 'create', 'show', 'update', 'delete')
+
+    list_view_template = 'templates/{model}_list.pt'
+    list_view_permission = 'list'
+
+    create_view_template = 'templates/{model}_create.pt'
+    create_view_permission = 'create'
+
+    show_view_template = 'templates/{model}_show.pt'
+    show_view_permission = 'view'
+
+    update_view_template = 'templates/{model}_update.pt'
+    update_view_permission = 'update'
+
+    delete_view_permission = 'delete'
+
+    def __init__(self, config):
+        ModelClass = self.ModelFactoryClass.ModelClass
+
+        if 'list' in self.enabled_views:
+            config.add_view(model_list(ModelClass),
+                            context=self.ModelFactoryClass,
+                            route_name='site',
+                            renderer=self.list_view_template.format(
+                                model=ModelClass.__tablename__),
+                            permission=self.list_view_permission)
+
+        if 'create' in self.enabled_views:
+            config.add_view(model_create(ModelClass, self.ModelFormClass),
+                            context=self.ModelFactoryClass,
+                            route_name='site', name='add',
+                            renderer=self.create_view_template.format(
+                                model=ModelClass.__tablename__),
+                            permission=self.create_view_permission)
+
+        if 'show' in self.enabled_views:
+            config.add_view(model_show(ModelClass),
+                            context=ModelClass,
+                            route_name='site',
+                            renderer=self.show_view_template.format(
+                                model=ModelClass.__tablename__),
+                            permission=self.show_view_permission)
+
+        if 'update' in self.enabled_views:
+            config.add_view(model_update(ModelClass, self.ModelUpdateFormClass
+                            if self.ModelUpdateFormClass
+                            else self.ModelFormClass),
+                            context=ModelClass, route_name='site', name='edit',
+                            renderer=self.update_view_template.format(
+                                model=ModelClass.__tablename__),
+                            permission=self.update_view_permission)
+
+        if 'delete' in self.enabled_views:
+            config.add_view(model_delete(self.ModelFactoryClass),
+                            context=ModelClass, route_name='site',
+                            name='delete',
+                            permission=self.delete_view_permission,
+                            request_method='POST', check_csrf=True)
+
+
 @check_post_csrf
 def user_login(context, request):
     login_url = request.route_url('login')

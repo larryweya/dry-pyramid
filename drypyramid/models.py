@@ -195,6 +195,10 @@ class ModelFactory(object):
         return request.route_url(
             'site', traverse=(self.ModelClass.__tablename__, action_name))
 
+    def list_url(self, request):
+        return request.route_url(
+            'site', traverse=(self.ModelClass.__tablename__,))
+
 
 class BaseUserFactory(ModelFactory):
     ModelClass = BaseUser
