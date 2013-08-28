@@ -104,51 +104,62 @@ def model_delete(factory):
 
 
 class ModelView(object):
+    LIST = 'list'
+    CREATE = 'create'
+    SHOW = 'show'
+    UPDATE = 'update'
+    DELETE = 'delete'
+
+    enabled_views = (LIST, CREATE, SHOW, UPDATE, DELETE)
+
     ModelFactoryClass = None
     ModelFormClass = None
     ModelUpdateFormClass = None
 
-    enabled_views = ('list', 'create', 'show', 'update', 'delete')
+    base_name_override = None
 
-    list_view_template = 'templates/{model}_list.pt'
+    list_view_renderer = 'templates/{base_name}_list.pt'
     list_view_permission = 'list'
 
-    create_view_template = 'templates/{model}_create.pt'
+    create_view_renderer = 'templates/{base_name}_create.pt'
     create_view_permission = 'create'
 
-    show_view_template = 'templates/{model}_show.pt'
+    show_view_renderer = 'templates/{base_name}_show.pt'
     show_view_permission = 'view'
 
-    update_view_template = 'templates/{model}_update.pt'
+    update_view_renderer = 'templates/{base_name}_update.pt'
     update_view_permission = 'update'
 
     delete_view_permission = 'delete'
 
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         ModelClass = self.ModelFactoryClass.ModelClass
+        base_name = self.base_name_override if\
+            self.base_name_override is not None else\
+            ModelClass.__tablename__
 
         if 'list' in self.enabled_views:
             config.add_view(model_list(ModelClass),
                             context=self.ModelFactoryClass,
                             route_name='site',
-                            renderer=self.list_view_template.format(
-                                model=ModelClass.__tablename__),
+                            renderer=self.list_view_renderer.format(
+                                base_name=base_name),
                             permission=self.list_view_permission)
 
         if 'create' in self.enabled_views:
             config.add_view(model_create(ModelClass, self.ModelFormClass),
                             context=self.ModelFactoryClass,
                             route_name='site', name='add',
-                            renderer=self.create_view_template.format(
-                                model=ModelClass.__tablename__),
+                            renderer=self.create_view_renderer.format(
+                                base_name=base_name),
                             permission=self.create_view_permission)
 
         if 'show' in self.enabled_views:
             config.add_view(model_show(ModelClass),
                             context=ModelClass,
                             route_name='site',
-                            renderer=self.show_view_template.format(
-                                model=ModelClass.__tablename__),
+                            renderer=self.show_view_renderer.format(
+                                base_name=base_name),
                             permission=self.show_view_permission)
 
         if 'update' in self.enabled_views:
@@ -156,8 +167,8 @@ class ModelView(object):
                             if self.ModelUpdateFormClass
                             else self.ModelFormClass),
                             context=ModelClass, route_name='site', name='edit',
-                            renderer=self.update_view_template.format(
-                                model=ModelClass.__tablename__),
+                            renderer=self.update_view_renderer.format(
+                                base_name=base_name),
                             permission=self.update_view_permission)
 
         if 'delete' in self.enabled_views:

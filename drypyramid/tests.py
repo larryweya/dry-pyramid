@@ -221,7 +221,7 @@ class TestModelView(TestBase):
         class PersonView(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = self.PersonForm
-            enabled_views = ('list', 'create', 'update')
+            enabled_views = (ModelView.LIST, ModelView.CREATE, ModelView.UPDATE)
 
         PersonView(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
@@ -260,15 +260,15 @@ class TestModelView(TestBase):
         response = testapp.get('/people/1/edit')
         response.mustcontain('UpdatePersonForm')
 
-    def test_template_overrides_work_on_all_views(self):
+    def test_renderer_overrides_work_on_all_views(self):
         class PersonView(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = self.PersonForm
 
-            list_view_template = 'templates/person_custom_list.pt'
-            create_view_template = 'templates/person_custom_create.pt'
-            show_view_template = 'templates/person_custom_show.pt'
-            update_view_template = 'templates/person_custom_update.pt'
+            list_view_renderer = 'templates/person_custom_list.pt'
+            create_view_renderer = 'templates/person_custom_create.pt'
+            show_view_renderer = 'templates/person_custom_show.pt'
+            update_view_renderer = 'templates/person_custom_update.pt'
 
         PersonView(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
