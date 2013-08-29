@@ -13,6 +13,7 @@ from sqlalchemy.orm import (
     sessionmaker,
     relationship,
     synonym,
+    backref,
 )
 from zope.sqlalchemy import ZopeTransactionExtension
 from slugify import slugify
@@ -117,7 +118,9 @@ class BaseUser(Base):
     account_id = Column(String(100), unique=True, nullable=False)
     _password = Column(String(255), nullable=False)
     is_active = Column(Boolean(), nullable=False, default=False)
-    groups = relationship('BaseGroup', secondary=user_group, backref='users')
+    groups = relationship('BaseGroup', secondary=user_group,
+                          backref=backref('users', enable_typechecks=False),
+                          enable_typechecks=False)
 
     def check_password(self, against):
         return pwd_context.verify(against, self._password)
