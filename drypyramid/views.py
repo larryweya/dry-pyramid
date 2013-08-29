@@ -18,7 +18,7 @@ def check_post_csrf(func):
         if request.method == "POST" and not(
                 request.session.get_csrf_token() ==
                 request.POST.get('csrf_token')):
-            return HTTPBadRequest()
+            return HTTPBadRequest("Your session seems to have timed out.")
         else:
             return func.__call__(context, request)
     return inner
