@@ -22,6 +22,10 @@ from .auth import pwd_context
 SASession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
 
 
+def camel_case(value):
+    return ' '.join([w.capitalize() for w in value.split('_')])
+
+
 class Model(object):
     def save(self):
         SASession.add(self)
@@ -57,6 +61,10 @@ class Model(object):
     def delete_url(self, request):
         return request.route_url(
             'site', traverse=(self.__tablename__, self.id, 'delete'))
+
+    @property
+    def __prettyname__(self):
+        return camel_case(self.__name__)
 
 
 Base = declarative_base(cls=Model)
@@ -212,6 +220,10 @@ class ModelFactory(object):
         return request.route_url(
             'site', traverse=(self.ModelClass.__tablename__,))
 
+    @property
+    def __prettyname__(self):
+        return camel_case(self.__name__)
+
 
 class BaseUserFactory(ModelFactory):
     ModelClass = BaseUser
@@ -222,6 +234,8 @@ class BaseGroupFactory(ModelFactory):
 
 
 class BaseRootFactory(object):
+    __name__ = None
+    __parent__ = None
     __acl__ = []
     __factories__ = {}
 
