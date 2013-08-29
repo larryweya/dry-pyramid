@@ -1,9 +1,13 @@
 import unittest
 import colander
 
+from webob.multidict import MultiDict
 from webtest import TestApp
 from pyramid import testing
-from pyramid.httpexceptions import HTTPNotFound
+from pyramid.httpexceptions import (
+    HTTPNotFound,
+    HTTPFound
+)
 from sqlalchemy import (
     create_engine,
     Column,
@@ -15,9 +19,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import (
     relationship,
 )
-from drypyramid.models import (
-    SASession, Base, ModelFactory, BaseRootFactory
+from .models import (
+    SASession,
+    Base,
+    ModelFactory,
+    BaseRootFactory,
+    BaseUser,
 )
+from .auth import pwd_context
 from .views import ModelView
 
 
@@ -50,19 +59,23 @@ class PersonModelFactory(ModelFactory):
 
 
 class TestBase(unittest.TestCase):
+    def _setup_db(self):
+        self.engine = create_engine('sqlite:///:memory:', echo=True)
+        SASession.configure(bind=self.engine)
+        Base.metadata.create_all(self.engine)
+
     def setUp(self):
         self.config = testing.setUp()
+        self.config.add_route('login', '/login')
         self.config.add_route('site', '/*traverse')
-        engine = create_engine('sqlite:///:memory:', echo=True)
-        SASession.configure(bind=engine)
-        Base.metadata.create_all(engine)
+        self._setup_db()
 
     def tearDown(self):
         SASession.remove()
         testing.tearDown()
 
 
-class TestModel(TestBase):
+class TestBaseModel(TestBase):
     def test_create_from_dict(self):
         data = {
             'name': "Mr Smith",
@@ -288,3 +301,58 @@ class TestModelView(TestBase):
         # update
         response = testapp.get('/people/1/edit')
         response.mustcontain('Person Custom Update')
+
+
+class TestLogin(TestBase):
+    def setUp(self):
+        super(TestLogin, self).setUp()
+        pwd_context.load({'schemes': ['des_crypt']})
+        user = BaseUser(account_id='admin@example.com', password='admin')
+        user.save()
+        SASession.flush()
+
+    def test_login_GET_request(self):
+        from views import user_login
+        request = testing.DummyRequest()
+        request.method = 'GET'
+        context = BaseRootFactory(request)
+        response = user_login(context, request)
+        self.assertIn('csrf_token', response)
+        self.assertIn('form', response)
+
+    def test_login_returns_bad_request_if_no_csrf_token(self):
+        from views import user_login
+        request = testing.DummyRequest()
+        request.method = 'POST'
+        context = BaseRootFactory(request)
+        response = user_login(context, request)
+        self.assertEqual(response.status_code, 400)
+
+    def test_login_POST_with_valid_credentials(self):
+        from views import user_login
+        request = testing.DummyRequest()
+        request.method = 'POST'
+        values = [
+            ('csrf_token', request.session.get_csrf_token()),
+            ('account_id', 'admin@example.com'),
+            ('password', 'admin'),
+        ]
+        request.POST = MultiDict(values)
+        context = BaseRootFactory(request)
+        response = user_login(context, request)
+        self.assertIsInstance(response, HTTPFound)
+
+    def test_login_POST_with_invalid_credentials(self):
+        from views import user_login
+        request = testing.DummyRequest()
+        request.method = 'POST'
+        values = [
+            ('csrf_token', request.session.get_csrf_token()),
+            ('account_id', 'admin@example.com'),
+            ('password', 'wrong'),
+        ]
+        request.POST = MultiDict(values)
+        context = BaseRootFactory(request)
+        response = user_login(context, request)
+        self.assertIn('csrf_token', response)
+        self.assertIn('form', response)

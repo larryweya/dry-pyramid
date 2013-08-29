@@ -200,18 +200,22 @@ def user_login(context, request):
                 u"Please fix the errors indicated below.", "error")
         else:
             account_id = values['account_id']
+            password = values['password']
             try:
                 user = BaseUser.query().filter(
                     BaseUser.account_id == account_id).one()
-                # todo: check password
             except NoResultFound:
                 request.session.flash(
                     u"Invalid username or password.", "error")
             else:
-                if 'came_from' in request.session:
-                    del request.session['came_from']
-                headers = remember(request, user.id)
-                return HTTPFound(came_from, headers=headers)
+                if user.check_password(password):
+                    if 'came_from' in request.session:
+                        del request.session['came_from']
+                    headers = remember(request, user.id)
+                    return HTTPFound(came_from, headers=headers)
+                else:
+                    request.session.flash(
+                        u"Invalid username or password.", "error")
 
     request.session['came_from'] = referrer
     csrf_token = request.session.get_csrf_token()

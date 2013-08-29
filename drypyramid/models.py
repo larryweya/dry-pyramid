@@ -1,7 +1,6 @@
 from sqlalchemy import (
     Column,
     Integer,
-    Text,
     String,
     Boolean,
     Table,
@@ -13,6 +12,7 @@ from sqlalchemy.orm import (
     scoped_session,
     sessionmaker,
     relationship,
+    synonym,
 )
 from zope.sqlalchemy import ZopeTransactionExtension
 from slugify import slugify
@@ -115,12 +115,12 @@ class BaseUser(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     account_id = Column(String(100), unique=True, nullable=False)
-    password = Column(String(255), nullable=False)
+    _password = Column(String(255), nullable=False)
     is_active = Column(Boolean(), nullable=False, default=False)
     groups = relationship('BaseGroup', secondary=user_group, backref='users')
 
-    def check_password(self):
-        raise NotImplementedError()
+    def check_password(self, against):
+        return pwd_context.verify(against, self._password)
 
     def update_url(self, request):
         return request.route_url('site', traverse=('users', self.id, 'edit'))
@@ -137,13 +137,23 @@ class BaseUser(Base):
 
     def update_from_dict(self, data):
         # if password is blank, remove its key from data
-        has_password = 'password' in data
-        if has_password and not data['password']:
+        contains_password = 'password' in data
+        if contains_password and not data['password']:
             del data['password']
-        elif has_password:
-            # encrypt
-            data['password'] = pwd_context.encrypt(data['password'])
+        #elif contains_password:
+        #    # encrypt
+        #    data['password'] = pwd_context.encrypt(data['password'])
         super(BaseUser, self).update_from_dict(data)
+
+    @property
+    def password(self):
+        return self._password
+
+    @password.setter
+    def password(self, value):
+        self._password = pwd_context.encrypt(value)
+
+    password = synonym('_password', descriptor=password)
 
     @property
     def group_names(self):
