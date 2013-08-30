@@ -72,7 +72,7 @@ def model_create(model, schema):
 def model_update(model, schema):
     def update(context, request):
         record = context
-        form = Form(schema.__call__().bind(),
+        form = Form(schema.__call__().bind(pk=record.id),
                     buttons=("save", Button('reset', "Reset", 'reset')),
                     appstruct=record.to_dict())
         if request.method == 'POST':
@@ -185,7 +185,7 @@ def user_login(context, request):
     referrer = request.url
     if referrer == login_url:
         # never use the login form itself as came_from
-        referrer = request.route_url('default')
+        referrer = request.route_url('site', traverse=())
     else:
         request.response.status_code = 403
     came_from = request.session.get('came_from', referrer)
