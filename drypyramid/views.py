@@ -39,10 +39,6 @@ def model_show(model):
 
 
 def model_create(model, schema):
-    # todo: perhaps get the schema associated with this model here then
-    # instantiate whenever the view is called
-    #schema = model.get_schema()
-
     def create(context, request):
         form = Form(schema.__call__().bind(), buttons=(
             "save", Button('reset', "Reset", 'reset')))
@@ -132,51 +128,72 @@ class ModelView(object):
 
     delete_view_permission = 'delete'
 
-    def __init__(self, config, **kwargs):
-        ModelClass = self.ModelFactoryClass.ModelClass
-        base_name = self.base_name_override if\
-            self.base_name_override is not None else\
+    @classmethod
+    def get_base_name(cls):
+        return cls.base_name_override if\
+            cls.base_name_override is not None else\
+            cls.ModelFactoryClass.ModelClass.__tablename__
+
+    @classmethod
+    def include(cls, config, **kwargs):
+        ModelClass = cls.ModelFactoryClass.ModelClass
+        base_name = cls.base_name_override if\
+            cls.base_name_override is not None else\
             ModelClass.__tablename__
 
-        if 'list' in self.enabled_views:
+        config.add_route('{0}'.format(base_name),
+                         '/{0}/*traverse'.format(base_name),
+                         factory=cls.ModelFactoryClass)
+
+        if 'list' in cls.enabled_views:
             config.add_view(model_list(ModelClass),
-                            context=self.ModelFactoryClass,
-                            route_name='site',
-                            renderer=self.list_view_renderer.format(
+                            context=cls.ModelFactoryClass,
+                            route_name=base_name,
+                            renderer=cls.list_view_renderer.format(
                                 base_name=base_name),
-                            permission=self.list_view_permission)
+                            permission=cls.list_view_permission)
 
-        if 'create' in self.enabled_views:
-            config.add_view(model_create(ModelClass, self.ModelFormClass),
-                            context=self.ModelFactoryClass,
-                            route_name='site', name='add',
-                            renderer=self.create_view_renderer.format(
+        if 'create' in cls.enabled_views:
+            config.add_view(model_create(ModelClass, cls.ModelFormClass),
+                            context=cls.ModelFactoryClass,
+                            route_name=base_name, name='add',
+                            renderer=cls.create_view_renderer.format(
                                 base_name=base_name),
-                            permission=self.create_view_permission)
+                            permission=cls.create_view_permission)
 
-        if 'show' in self.enabled_views:
+        if 'show' in cls.enabled_views:
             config.add_view(model_show(ModelClass),
                             context=ModelClass,
-                            route_name='site',
-                            renderer=self.show_view_renderer.format(
+                            route_name=base_name,
+                            renderer=cls.show_view_renderer.format(
                                 base_name=base_name),
-                            permission=self.show_view_permission)
+                            permission=cls.show_view_permission)
 
-        if 'update' in self.enabled_views:
-            config.add_view(model_update(ModelClass, self.ModelUpdateFormClass
-                            if self.ModelUpdateFormClass
-                            else self.ModelFormClass),
-                            context=ModelClass, route_name='site', name='edit',
-                            renderer=self.update_view_renderer.format(
+        if 'update' in cls.enabled_views:
+            config.add_view(model_update(ModelClass, cls.ModelUpdateFormClass
+                            if cls.ModelUpdateFormClass
+                            else cls.ModelFormClass),
+                            context=ModelClass, route_name=base_name,
+                            name='edit',
+                            renderer=cls.update_view_renderer.format(
                                 base_name=base_name),
-                            permission=self.update_view_permission)
+                            permission=cls.update_view_permission)
 
-        if 'delete' in self.enabled_views:
-            config.add_view(model_delete(self.ModelFactoryClass),
-                            context=ModelClass, route_name='site',
+        if 'delete' in cls.enabled_views:
+            config.add_view(model_delete(cls.ModelFactoryClass),
+                            context=ModelClass, route_name=base_name,
                             name='delete',
-                            permission=self.delete_view_permission,
+                            permission=cls.delete_view_permission,
                             request_method='POST', check_csrf=True)
+
+    @classmethod
+    def after_create_redirect_url(cls, request, record):
+        return request.route_url(cls.get_base_name(), traverse=(record.id,))
+
+    @classmethod
+    def after_update_redirect_url(cls, request, record):
+        return request.route_url(cls.get_base_name(),
+                                 traverse=(record.id, 'edit'))
 
 
 @check_post_csrf

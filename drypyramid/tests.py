@@ -66,8 +66,8 @@ class TestBase(unittest.TestCase):
 
     def setUp(self):
         self.config = testing.setUp()
-        self.config.add_route('login', '/login')
-        self.config.add_route('site', '/*traverse')
+        #self.config.add_route('login', '/login')
+        #self.config.add_route('site', '/*traverse')
         self._setup_db()
 
     def tearDown(self):
@@ -136,9 +136,10 @@ class TestModelFactory(TestBase):
 
 class TestModelView(TestBase):
     class TestRootFactory(BaseRootFactory):
-        __factories__ = {
-            Person.__tablename__: PersonModelFactory
-        }
+        #__factories__ = {
+        #    Person.__tablename__: PersonModelFactory
+        #}
+        pass
 
     class TestRenderer(object):
         responses = {
@@ -171,7 +172,7 @@ class TestModelView(TestBase):
         name = colander.SchemaNode(colander.String(encoding='utf-8'))
         age = colander.SchemaNode(colander.Integer())
 
-    class UpdatePersonForm(colander.MappingSchema):
+    class PersonUpdateForm(colander.MappingSchema):
         class HobbiesSchema(colander.SequenceSchema):
             name = colander.SchemaNode(
                 colander.String(encoding='utf-8'), title="Hobby")
@@ -201,11 +202,11 @@ class TestModelView(TestBase):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = self.PersonForm
 
-        PersonView(self.config)
+        PersonView.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # list
-        response = testapp.get('/people')
+        response = testapp.get('/people/')
         response.mustcontain('People List')
 
         # create
@@ -264,14 +265,14 @@ class TestModelView(TestBase):
         class PersonView(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = self.PersonForm
-            ModelUpdateFormClass = self.UpdatePersonForm
+            ModelUpdateFormClass = self.PersonUpdateForm
 
         PersonView(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # update
         response = testapp.get('/people/1/edit')
-        response.mustcontain('UpdatePersonForm')
+        response.mustcontain('PersonUpdateForm')
 
     def test_renderer_overrides_work_on_all_views(self):
         class PersonView(ModelView):
