@@ -178,6 +178,11 @@ class ModelView(object):
                             permission=self.delete_view_permission,
                             request_method='POST', check_csrf=True)
 
+    @classmethod
+    def get_model_update_form_class(cls):
+        return cls.ModelUpdateFormClass if cls.ModelUpdateFormClass\
+            else cls.ModelFormClass
+
 
 @check_post_csrf
 def user_login(context, request):
