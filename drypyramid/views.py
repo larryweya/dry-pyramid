@@ -33,12 +33,12 @@ def model_list(model):
 
 
 def model_show(model):
-    def show(request):
-        return {'record': request.context}
+    def show(context, request):
+        return {'record': context}
     return show
 
 
-def model_create(model, schema):
+def model_create(model, schema, after_create_url_callback):
     def create(context, request):
         form = Form(schema.__call__().bind(), buttons=(
             "save", Button('reset', "Reset", 'reset')))
@@ -59,13 +59,14 @@ def model_create(model, schema):
                 #else:
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.show_url(request))
+                url = after_create_url_callback(request, record)
+                return HTTPFound(url)
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return create
 
 
-def model_update(model, schema):
+def model_update(model, schema, after_update_url_callback):
     def update(context, request):
         record = context
         form = Form(schema.__call__().bind(pk=record.id),
@@ -83,19 +84,21 @@ def model_update(model, schema):
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.show_url(request))
+                url = after_update_url_callback(request, record)
+                return HTTPFound(url)
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return update
 
 
-def model_delete(factory):
+def model_delete(after_delete_url_callback):
     def delete(context, request):
         record = context
         record.delete()
         request.session.flash(
             u"The record has been deleted.", "success")
-        return HTTPFound(factory(request).list_url(request))
+        url = after_delete_url_callback(request)
+        return HTTPFound(url)
     return delete
 
 
@@ -140,6 +143,7 @@ class ModelView(object):
         base_name = cls.base_name_override if\
             cls.base_name_override is not None else\
             ModelClass.__tablename__
+        cls.ModelFactoryClass.__base_name__ = base_name
 
         config.add_route('{0}'.format(base_name),
                          '/{0}/*traverse'.format(base_name),
@@ -154,7 +158,8 @@ class ModelView(object):
                             permission=cls.list_view_permission)
 
         if 'create' in cls.enabled_views:
-            config.add_view(model_create(ModelClass, cls.ModelFormClass),
+            config.add_view(model_create(ModelClass, cls.ModelFormClass,
+                                         cls.after_create_redirect_url),
                             context=cls.ModelFactoryClass,
                             route_name=base_name, name='add',
                             renderer=cls.create_view_renderer.format(
@@ -172,7 +177,8 @@ class ModelView(object):
         if 'update' in cls.enabled_views:
             config.add_view(model_update(ModelClass, cls.ModelUpdateFormClass
                             if cls.ModelUpdateFormClass
-                            else cls.ModelFormClass),
+                            else cls.ModelFormClass,
+                                         cls.after_update_redirect_url),
                             context=ModelClass, route_name=base_name,
                             name='edit',
                             renderer=cls.update_view_renderer.format(
@@ -180,7 +186,7 @@ class ModelView(object):
                             permission=cls.update_view_permission)
 
         if 'delete' in cls.enabled_views:
-            config.add_view(model_delete(cls.ModelFactoryClass),
+            config.add_view(model_delete(cls.after_delete_redirect_url),
                             context=ModelClass, route_name=base_name,
                             name='delete',
                             permission=cls.delete_view_permission,
@@ -188,12 +194,18 @@ class ModelView(object):
 
     @classmethod
     def after_create_redirect_url(cls, request, record):
-        return request.route_url(cls.get_base_name(), traverse=(record.id,))
+        return request.route_url(cls.ModelFactoryClass.__base_name__,
+                                 traverse=(record.id,))
 
     @classmethod
     def after_update_redirect_url(cls, request, record):
-        return request.route_url(cls.get_base_name(),
+        return request.route_url(cls.ModelFactoryClass.__base_name__,
                                  traverse=(record.id, 'edit'))
+
+    @classmethod
+    def after_delete_redirect_url(cls, request):
+        return request.route_url(cls.ModelFactoryClass.__base_name__,
+                                 traverse=())
 
 
 @check_post_csrf

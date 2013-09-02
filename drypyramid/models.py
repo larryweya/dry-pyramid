@@ -50,18 +50,6 @@ class Model(object):
     def update_from_dict(self, data):
         [setattr(self, key, data.get(key)) for key in data]
 
-    def show_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id))
-
-    def update_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id, 'edit'))
-
-    def delete_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id, 'delete'))
-
     @property
     def __prettyname__(self):
         return camel_case(self.__name__)
@@ -133,12 +121,6 @@ class BaseUser(Base):
     def check_password(self, against):
         return pwd_context.verify(against, self._password)
 
-    def update_url(self, request):
-        return request.route_url('site', traverse=('users', self.id, 'edit'))
-
-    def delete_url(self, request):
-        return request.route_url('site', traverse=('users', self.id, 'delete'))
-
     def to_dict(self):
         data = super(BaseUser, self).to_dict()
         # password can only be set, not edited
@@ -189,8 +171,9 @@ class BaseGroup(Base):
 
 
 class ModelFactory(object):
-    __name__ = None
+    __name__ = ''
     __parent__ = None
+    #__base_name__ = None
 
     def __init__(self, request):
         self.request = request
@@ -212,13 +195,24 @@ class ModelFactory(object):
         ACL"""
         pass
 
-    def create_url(self, request, action_name='add'):
-        return request.route_url(
-            'site', traverse=(self.ModelClass.__tablename__, action_name))
-
     def list_url(self, request):
         return request.route_url(
-            'site', traverse=(self.ModelClass.__tablename__,))
+            self.__base_name__, traverse=())
+
+    def create_url(self, request):
+        return request.route_url(
+            self.__base_name__, traverse=('add',))
+
+    def show_url(self, request, record):
+        return request.route_url(self.__base_name__, traverse=(record.id,))
+
+    def update_url(self, request, record):
+        return request.route_url(self.__base_name__,
+                                 traverse=(record.id, 'edit'))
+
+    def delete_url(self, request, record):
+        return request.route_url(self.__base_name__,
+                                 traverse=(record.id, 'delete'))
 
     @property
     def __prettyname__(self):
