@@ -55,6 +55,8 @@ def model_create(model, schema):
                     u"Please fix the errors indicated below.", "error")
             else:
                 record = model.create_from_dict(dict(values))
+                if pre_save_callback:
+                    pre_save_callback(request, record)
                 record.save()
                 #try:
                 SASession.flush()
@@ -63,13 +65,17 @@ def model_create(model, schema):
                 #else:
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.show_url(request))
+                if post_save_response_callback:
+                    return post_save_response_callback(request, record)
+                else:
+                    return HTTPFound(record.show_url(request))
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return create
 
 
-def model_update(model, schema):
+def model_update(model, schema, pre_save_callback=None,
+                 post_save_response_callback=None):
     def update(context, request):
         record = context
         form = Form(schema.__call__().bind(pk=record.id),
@@ -84,12 +90,17 @@ def model_update(model, schema):
                     u"Please fix the errors indicated below.", "error")
             else:
                 record.update_from_dict(dict(values))
+                if pre_save_callback:
+                    pre_save_callback(request, record)
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                return HTTPFound(record.show_url(request))
+                if post_save_response_callback:
+                    return post_save_response_callback(request, record)
+                else:
+                    return HTTPFound(record.show_url(request))
         csrf_token = request.session.get_csrf_token()
-        return {'csrf_token': csrf_token, 'form': form}
+        return {'csrf_token': csrf_token, 'form': form, 'record': record}
     return update
 
 
