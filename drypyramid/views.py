@@ -38,7 +38,8 @@ def model_show(model):
     return show
 
 
-def model_create(model, schema):
+def model_create(model, schema, pre_save_callback=None,
+                 post_save_response_callback=None):
     # todo: perhaps get the schema associated with this model here then
     # instantiate whenever the view is called
     #schema = model.get_schema()
@@ -134,14 +135,19 @@ class ModelView(object):
 
     create_view_renderer = 'templates/{base_name}_create.pt'
     create_view_permission = 'create'
+    pre_create_callback = None
+    post_create_response_callback = None
 
     show_view_renderer = 'templates/{base_name}_show.pt'
     show_view_permission = 'view'
 
     update_view_renderer = 'templates/{base_name}_update.pt'
     update_view_permission = 'update'
+    pre_update_callback = None
+    post_update_response_callback = None
 
     delete_view_permission = 'delete'
+    post_delete_response_callback = None
 
     def __init__(self, config, **kwargs):
         ModelClass = self.ModelFactoryClass.ModelClass
