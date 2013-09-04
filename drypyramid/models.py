@@ -22,7 +22,7 @@ from .auth import pwd_context
 SASession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
 
 
-def camel_case(value):
+def prettify(value):
     return ' '.join([w.capitalize() for w in value.split('_')])
 
 
@@ -52,7 +52,7 @@ class Model(object):
 
     @property
     def __prettyname__(self):
-        return camel_case(self.__name__)
+        return prettify(self.__name__)
 
 
 Base = declarative_base(cls=Model)
@@ -173,7 +173,7 @@ class BaseGroup(Base):
 class ModelFactory(object):
     __name__ = ''
     __parent__ = None
-    #__route_name__ = None
+    __route_name__ = None
 
     def __init__(self, request):
         self.request = request
@@ -216,15 +216,7 @@ class ModelFactory(object):
 
     @property
     def __prettyname__(self):
-        return camel_case(self.__name__)
-
-
-class BaseUserFactory(ModelFactory):
-    ModelClass = BaseUser
-
-
-class BaseGroupFactory(ModelFactory):
-    ModelClass = BaseGroup
+        return prettify(self.__name__)
 
 
 class BaseRootFactory(object):
