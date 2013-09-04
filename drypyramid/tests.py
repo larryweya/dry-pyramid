@@ -61,8 +61,8 @@ class Hobby(Base):
 class PersonModelFactory(ModelFactory):
     ModelClass = Person
 
-    def on_get_item(self, item):
-        self.on_get_item_called = True
+    def post_get_item(self, item):
+        self.post_get_item_called = True
 
 
 class PersonForm(colander.MappingSchema):
@@ -138,52 +138,53 @@ class TestModelFactory(TestBase):
     def setUp(self):
         super(TestModelFactory, self).setUp()
         self.request = testing.DummyRequest()
-        # should be done by ModelView on include
+        # this is done by ModelView on include
         base_name = 'persons'
+        base_url = 'people'
         PersonModelFactory.__base_name__ = base_name
-        self.config.add_route(base_name, '/{0}/*traverse'.format(base_name),
+        self.config.add_route(base_name, '/{0}/*traverse'.format(base_url),
                               factory=PersonModelFactory)
         self.factory = PersonModelFactory(self.request)
 
     def test_list_url(self):
         url = self.factory.list_url(self.request)
-        expected_url = "%s/persons/" % self.request.application_url
+        expected_url = "%s/people/" % self.request.application_url
         self.assertEqual(url, expected_url)
 
     def test_create_url(self):
         self.factory = PersonModelFactory(self.request)
         url = self.factory.create_url(self.request)
-        expected_url = "%s/persons/add" % self.request.application_url
+        expected_url = "%s/people/add" % self.request.application_url
         self.assertEqual(url, expected_url)
 
     def test_show_url(self):
         person = Person(id=1, name="Mr Smith", age=23)
         url = self.factory.show_url(self.request, person)
-        expected_url = "{0}/persons/{1}".format(self.request.application_url,
+        expected_url = "{0}/people/{1}".format(self.request.application_url,
                                                person.id)
         self.assertEqual(url, expected_url)
 
     def test_update_url(self):
         person = Person(id=1, name="Mr Smith", age=23)
         url = self.factory.update_url(self.request, person)
-        expected_url = "{0}/persons/{1}/edit".format(
+        expected_url = "{0}/people/{1}/edit".format(
             self.request.application_url, person.id)
         self.assertEqual(url, expected_url)
 
     def test_delete_url(self):
         person = Person(id=1, name="Mr Smith", age=23)
         url = self.factory.delete_url(self.request, person)
-        expected_url = "{0}/persons/{1}/delete".format(
+        expected_url = "{0}/people/{1}/delete".format(
             self.request.application_url, person.id)
         self.assertEqual(url, expected_url)
 
-    def test_get_item_calls_on_get_item(self):
+    def test_get_item_calls_post_get_item(self):
         self.factory = PersonModelFactory(self.request)
         # create a Person
         person = Person(name="Mr Smith", age=23)
         person.save()
         self.factory.__getitem__('1')
-        self.assertTrue(self.factory.on_get_item_called)
+        self.assertTrue(self.factory.post_get_item_called)
 
 
 class TestViewHelpers(TestBase):
@@ -204,10 +205,15 @@ class TestViewHelpers(TestBase):
         self.assertIsInstance(response['records'][0], Person)
 
     def test_model_create(self):
-        def _after_create_url_callback(request, record):
-            return request.route_url('persons', traverse=(record.id,))
+        def _post_create_response_callback(request, record):
+            return HTTPFound(request.route_url('persons',
+                                               traverse=(record.id,)))
 
-        view = model_create(Person, PersonForm, _after_create_url_callback)
+        def _pre_create_callback(request, record, values):
+            record.age = 25
+
+        view = model_create(Person, PersonForm, _post_create_response_callback,
+                            _pre_create_callback)
         request = testing.DummyRequest()
         request.method = 'POST'
         values = [
@@ -221,6 +227,8 @@ class TestViewHelpers(TestBase):
         self.assertIsInstance(response, HTTPFound)
         self.assertEqual(response.location,
                          '{0}/persons/1'.format(request.application_url))
+        person = Person.query().filter_by(name='Mr Smith').one()
+        self.assertEqual(person.age, 25)
 
     def test_model_show(self):
         person = Person(name='Mr Smith', age=23)
@@ -234,14 +242,19 @@ class TestViewHelpers(TestBase):
         self.assertIsInstance(response['record'], Person)
 
     def test_model_update(self):
-        def _after_update_url_callback(request, record):
-            return request.route_url('persons', traverse=(record.id,))
+        def _post_update_response_callback(request, record):
+            return HTTPFound(request.route_url('persons',
+                                               traverse=(record.id,)))
 
         person = Person(name='Not Mr Smith', age=23)
         person.save()
         SASession.flush()
 
-        view = model_update(Person, PersonForm, _after_update_url_callback)
+        def _pre_update_callback(request, record, values):
+            record.age = 28
+
+        view = model_update(Person, PersonForm, _post_update_response_callback,
+                            _pre_update_callback)
         request = testing.DummyRequest()
         request.method = 'POST'
         values = [
@@ -254,15 +267,17 @@ class TestViewHelpers(TestBase):
         self.assertIsInstance(response, HTTPFound)
         self.assertEqual(response.location,
                          '{0}/persons/1'.format(request.application_url))
+        person = Person.query().filter_by(name='Mr Smith').one()
+        self.assertEqual(person.age, 28)
 
     def test_model_delete(self):
-        def _after_del_url_callback(request):
-            return request.route_url('persons', traverse=())
+        def _post_del_response_callback(request, record):
+            return HTTPFound(request.route_url('persons', traverse=()))
 
         person = Person(name='Mr Smith', age=23)
         person.save()
         SASession.flush()
-        view = model_delete(_after_del_url_callback)
+        view = model_delete(_post_del_response_callback)
         self.config.add_view(view,
                              context=PersonModelFactory,
                              route_name='persons',
@@ -324,11 +339,11 @@ class TestModelView(TestBase):
         Check that all views (list, create, show, update, delete) are
         registered by default
         """
-        class PersonView(ModelView):
+        class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
 
-        PersonView.include(self.config)
+        PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # list
@@ -358,12 +373,12 @@ class TestModelView(TestBase):
         Test that only views within the enabled_views list are created and
         exposed
         """
-        class PersonView(ModelView):
+        class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
             enabled_views = (ModelView.LIST, ModelView.CREATE, ModelView.UPDATE)
 
-        PersonView.include(self.config)
+        PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # list
@@ -388,12 +403,12 @@ class TestModelView(TestBase):
                           {'csrf_token': csrf_token})
 
     def test_update_view_uses_update_form_override_if_specified(self):
-        class PersonView(ModelView):
+        class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
             ModelUpdateFormClass = PersonUpdateForm
 
-        PersonView.include(self.config)
+        PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # update
@@ -401,7 +416,7 @@ class TestModelView(TestBase):
         response.mustcontain('PersonUpdateForm')
 
     def test_renderer_overrides_work_on_all_views(self):
-        class PersonView(ModelView):
+        class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
 
@@ -410,7 +425,7 @@ class TestModelView(TestBase):
             show_view_renderer = 'templates/person_custom_show.pt'
             update_view_renderer = 'templates/person_custom_update.pt'
 
-        PersonView.include(self.config)
+        PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
 
         # list

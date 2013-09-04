@@ -187,10 +187,10 @@ class ModelFactory(object):
         else:
             record.__parent__ = self
             record.__name__ = key
-            self.on_get_item(record)
+            self.post_get_item(record)
             return record
 
-    def on_get_item(self, item):
+    def post_get_item(self, item):
         """Called after __getitem__ to manipulate the returned item e.g. attach
         ACL"""
         pass

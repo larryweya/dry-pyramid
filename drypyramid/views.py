@@ -38,7 +38,8 @@ def model_show(model):
     return show
 
 
-def model_create(model, schema, after_create_url_callback):
+def model_create(model, schema, post_save_response_callback,
+                 pre_save_callback=None):
     def create(context, request):
         form = Form(schema.__call__().bind(), buttons=(
             "save", Button('reset', "Reset", 'reset')))
@@ -51,6 +52,8 @@ def model_create(model, schema, after_create_url_callback):
                     u"Please fix the errors indicated below.", "error")
             else:
                 record = model.create_from_dict(dict(values))
+                if pre_save_callback:
+                    pre_save_callback(request, record, values)
                 record.save()
                 #try:
                 SASession.flush()
@@ -59,14 +62,14 @@ def model_create(model, schema, after_create_url_callback):
                 #else:
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                url = after_create_url_callback(request, record)
-                return HTTPFound(url)
+                return post_save_response_callback(request, record)
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return create
 
 
-def model_update(model, schema, after_update_url_callback):
+def model_update(model, schema, post_save_response_callback,
+                 pre_save_callback=None):
     def update(context, request):
         record = context
         form = Form(schema.__call__().bind(pk=record.id),
@@ -81,24 +84,24 @@ def model_update(model, schema, after_update_url_callback):
                     u"Please fix the errors indicated below.", "error")
             else:
                 record.update_from_dict(dict(values))
+                if pre_save_callback:
+                    pre_save_callback(request, record, values)
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                url = after_update_url_callback(request, record)
-                return HTTPFound(url)
+                return post_save_response_callback(request, record)
         csrf_token = request.session.get_csrf_token()
         return {'csrf_token': csrf_token, 'form': form}
     return update
 
 
-def model_delete(after_delete_url_callback):
+def model_delete(post_delete_response_callback):
     def delete(context, request):
         record = context
         record.delete()
         request.session.flash(
             u"The record has been deleted.", "success")
-        url = after_delete_url_callback(request)
-        return HTTPFound(url)
+        return post_delete_response_callback(request, record)
     return delete
 
 
@@ -115,97 +118,102 @@ class ModelView(object):
     ModelFormClass = None
     ModelUpdateFormClass = None
 
-    base_name_override = None
+    route_name_override = None
+    base_url_override = None
 
-    list_view_renderer = 'templates/{base_name}_list.pt'
+    list_view_renderer = 'templates/{route_name}_list.pt'
     list_view_permission = 'list'
 
-    create_view_renderer = 'templates/{base_name}_create.pt'
+    create_view_renderer = 'templates/{route_name}_create.pt'
     create_view_permission = 'create'
 
-    show_view_renderer = 'templates/{base_name}_show.pt'
+    show_view_renderer = 'templates/{route_name}_show.pt'
     show_view_permission = 'view'
 
-    update_view_renderer = 'templates/{base_name}_update.pt'
+    update_view_renderer = 'templates/{route_name}_update.pt'
     update_view_permission = 'update'
 
     delete_view_permission = 'delete'
 
     @classmethod
-    def get_base_name(cls):
-        return cls.base_name_override if\
-            cls.base_name_override is not None else\
+    def get_route_name(cls):
+        return cls.route_name_override if\
+            cls.route_name_override is not None else\
             cls.ModelFactoryClass.ModelClass.__tablename__
 
     @classmethod
-    def include(cls, config, **kwargs):
-        ModelClass = cls.ModelFactoryClass.ModelClass
-        base_name = cls.base_name_override if\
-            cls.base_name_override is not None else\
-            ModelClass.__tablename__
-        cls.ModelFactoryClass.__base_name__ = base_name
+    def get_base_url(cls):
+        return cls.base_url_override if\
+            cls.base_url_override is not None else\
+            cls.ModelFactoryClass.ModelClass.__tablename__
 
-        config.add_route('{0}'.format(base_name),
-                         '/{0}/*traverse'.format(base_name),
+    @classmethod
+    def include(cls, config):
+        ModelClass = cls.ModelFactoryClass.ModelClass
+        route_name = cls.get_route_name()
+        base_url = cls.get_base_url()
+        cls.ModelFactoryClass.__route_name__ = route_name
+
+        config.add_route('{0}'.format(route_name),
+                         '/{0}/*traverse'.format(base_url),
                          factory=cls.ModelFactoryClass)
 
         if 'list' in cls.enabled_views:
             config.add_view(model_list(ModelClass),
                             context=cls.ModelFactoryClass,
-                            route_name=base_name,
+                            route_name=route_name,
                             renderer=cls.list_view_renderer.format(
-                                base_name=base_name),
+                                route_name=route_name),
                             permission=cls.list_view_permission)
 
         if 'create' in cls.enabled_views:
             config.add_view(model_create(ModelClass, cls.ModelFormClass,
-                                         cls.after_create_redirect_url),
+                                         cls.post_create_response_callback),
                             context=cls.ModelFactoryClass,
-                            route_name=base_name, name='add',
+                            route_name=route_name, name='add',
                             renderer=cls.create_view_renderer.format(
-                                base_name=base_name),
+                                route_name=route_name),
                             permission=cls.create_view_permission)
 
         if 'show' in cls.enabled_views:
             config.add_view(model_show(ModelClass),
                             context=ModelClass,
-                            route_name=base_name,
+                            route_name=route_name,
                             renderer=cls.show_view_renderer.format(
-                                base_name=base_name),
+                                route_name=route_name),
                             permission=cls.show_view_permission)
 
         if 'update' in cls.enabled_views:
             config.add_view(model_update(ModelClass, cls.ModelUpdateFormClass
                             if cls.ModelUpdateFormClass
                             else cls.ModelFormClass,
-                                         cls.after_update_redirect_url),
-                            context=ModelClass, route_name=base_name,
+                                         cls.post_create_response_callback),
+                            context=ModelClass, route_name=route_name,
                             name='edit',
                             renderer=cls.update_view_renderer.format(
-                                base_name=base_name),
+                                route_name=route_name),
                             permission=cls.update_view_permission)
 
         if 'delete' in cls.enabled_views:
-            config.add_view(model_delete(cls.after_delete_redirect_url),
-                            context=ModelClass, route_name=base_name,
+            config.add_view(model_delete(cls.post_delete_response),
+                            context=ModelClass, route_name=route_name,
                             name='delete',
                             permission=cls.delete_view_permission,
                             request_method='POST', check_csrf=True)
 
     @classmethod
-    def after_create_redirect_url(cls, request, record):
-        return request.route_url(cls.ModelFactoryClass.__base_name__,
-                                 traverse=(record.id,))
+    def post_save_response(cls, request, record):
+        return HTTPFound(request.route_url(cls.get_route_name(),
+                                           traverse=(record.id, 'edit')))
 
     @classmethod
-    def after_update_redirect_url(cls, request, record):
-        return request.route_url(cls.ModelFactoryClass.__base_name__,
-                                 traverse=(record.id, 'edit'))
+    def post_delete_response(cls, request):
+        return HTTPFound(request.route_url(cls.get_route_name(),
+                                           traverse=()))
 
-    @classmethod
-    def after_delete_redirect_url(cls, request):
-        return request.route_url(cls.ModelFactoryClass.__base_name__,
-                                 traverse=())
+    post_create_response_callback = post_save_response
+    post_update_response_callback = post_save_response
+    post_delete_response_callback = None
 
 
 @check_post_csrf
