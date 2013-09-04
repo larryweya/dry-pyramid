@@ -63,8 +63,7 @@ def model_create(model, schema, post_save_response_callback,
                 request.session.flash(
                     u"Your changes have been saved.", "success")
                 return post_save_response_callback(request, record)
-        csrf_token = request.session.get_csrf_token()
-        return {'csrf_token': csrf_token, 'form': form}
+        return {'form': form}
     return create
 
 
@@ -90,8 +89,7 @@ def model_update(model, schema, post_save_response_callback,
                 request.session.flash(
                     u"Your changes have been saved.", "success")
                 return post_save_response_callback(request, record)
-        csrf_token = request.session.get_csrf_token()
-        return {'csrf_token': csrf_token, 'form': form}
+        return {'form': form}
     return update
 
 
