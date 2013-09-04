@@ -187,7 +187,7 @@ class ModelView(object):
             config.add_view(model_update(ModelClass, cls.ModelUpdateFormClass
                             if cls.ModelUpdateFormClass
                             else cls.ModelFormClass,
-                                         cls.post_create_response_callback),
+                                         cls.post_update_response_callback),
                             context=ModelClass, route_name=route_name,
                             name='edit',
                             renderer=cls.update_view_renderer.format(
@@ -195,7 +195,7 @@ class ModelView(object):
                             permission=cls.update_view_permission)
 
         if 'delete' in cls.enabled_views:
-            config.add_view(model_delete(cls.post_delete_response),
+            config.add_view(model_delete(cls.post_delete_response_callback),
                             context=ModelClass, route_name=route_name,
                             name='delete',
                             permission=cls.delete_view_permission,
@@ -207,13 +207,13 @@ class ModelView(object):
                                            traverse=(record.id, 'edit')))
 
     @classmethod
-    def post_delete_response(cls, request):
+    def post_delete_response(cls, request, record):
         return HTTPFound(request.route_url(cls.get_route_name(),
                                            traverse=()))
 
     post_create_response_callback = post_save_response
     post_update_response_callback = post_save_response
-    post_delete_response_callback = None
+    post_delete_response_callback = post_delete_response
 
 
 @check_post_csrf

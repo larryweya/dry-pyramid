@@ -39,13 +39,13 @@ from .views import (
 
 person_hobby = Table(
     'person_hobby', Base.metadata,
-    Column('person_id', Integer, ForeignKey('people.id')),
-    Column('hobby_id', Integer, ForeignKey('hobbies.id')),
+    Column('person_id', Integer, ForeignKey('person.id')),
+    Column('hobby_id', Integer, ForeignKey('hobby.id')),
 )
 
 
 class Person(Base):
-    __tablename__ = 'people'
+    __tablename__ = 'person'
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
     age = Column(Integer, nullable=False)
@@ -53,7 +53,7 @@ class Person(Base):
 
 
 class Hobby(Base):
-    __tablename__ = 'hobbies'
+    __tablename__ = 'hobby'
     id = Column(Integer, primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
 
@@ -292,16 +292,27 @@ class TestViewHelpers(TestBase):
                               '{0}/persons/'.format(request.application_url))
 
 
-class TestModelView(TestBase):
-    class TestRootFactory(BaseRootFactory):
+class TestRootFactory(BaseRootFactory):
         pass
 
+
+class FunctionalTestBase(TestBase):
+    application_url = 'http://localhost'
+
+    def setUp(self):
+        super(FunctionalTestBase, self).setUp()
+        self.config.set_root_factory(TestRootFactory)
+        session_factory = testing.DummySession
+        self.config.set_session_factory(session_factory)
+
+
+class TestModelView(FunctionalTestBase):
     class TestRenderer(object):
         responses = {
-            'templates/people_list.pt': '{{"title": "People List"}}',
-            'templates/people_create.pt': '{{"title": "People Create"}}',
-            'templates/people_show.pt': '{{"title": "Person Show"}}',
-            'templates/people_update.pt': '{{"title": "Person Update",'
+            'templates/person_list.pt': '{{"title": "People List"}}',
+            'templates/person_create.pt': '{{"title": "People Create"}}',
+            'templates/person_show.pt': '{{"title": "Person Show"}}',
+            'templates/person_update.pt': '{{"title": "Person Update",'
                                           '"form_class": "{form_class}"}}',
             # custom templates
             'templates/person_custom_list.pt': '{{"title": "People Custom List"}}',
@@ -325,9 +336,6 @@ class TestModelView(TestBase):
 
     def setUp(self):
         super(TestModelView, self).setUp()
-        self.config.set_root_factory(self.TestRootFactory)
-        session_factory = testing.DummySession
-        self.config.set_session_factory(session_factory)
         self.config.add_renderer('.pt', self.TestRenderer)
 
         person = Person(name="Mr Smith", age=23)
@@ -342,6 +350,7 @@ class TestModelView(TestBase):
         class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
+            base_url_override = 'people'
 
         PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
@@ -377,6 +386,7 @@ class TestModelView(TestBase):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
             enabled_views = (ModelView.LIST, ModelView.CREATE, ModelView.UPDATE)
+            base_url_override = 'people'
 
         PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
@@ -407,6 +417,7 @@ class TestModelView(TestBase):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
             ModelUpdateFormClass = PersonUpdateForm
+            base_url_override = 'people'
 
         PersonViews.include(self.config)
         testapp = TestApp(self.config.make_wsgi_app())
@@ -419,6 +430,7 @@ class TestModelView(TestBase):
         class PersonViews(ModelView):
             ModelFactoryClass = PersonModelFactory
             ModelFormClass = PersonForm
+            base_url_override = 'people'
 
             list_view_renderer = 'templates/person_custom_list.pt'
             create_view_renderer = 'templates/person_custom_create.pt'
@@ -443,6 +455,92 @@ class TestModelView(TestBase):
         # update
         response = testapp.get('/people/1/edit')
         response.mustcontain('Person Custom Update')
+
+
+class TestModelViewResponseCallbacks(FunctionalTestBase):
+    def test_create_view_response_override_works(self):
+        class PersonViews(ModelView):
+            ModelFactoryClass = PersonModelFactory
+            ModelFormClass = PersonForm
+            base_url_override = 'people'
+
+            @classmethod
+            def post_save_response(cls, request, record):
+                return HTTPFound(request.route_url('person',
+                                                   traverse=(record.id,)))
+            # NOTE: just overriding the function doesnt work
+            post_create_response_callback = post_save_response
+
+        PersonViews.include(self.config)
+        testapp = TestApp(self.config.make_wsgi_app())
+
+        request = testing.DummyRequest()
+        params = {
+            'name': 'Mr Smith',
+            'age': '22',
+            'csrf_token': request.session.get_csrf_token()}
+        response = testapp.post('/people/add', params)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location,
+                         '{0}/people/1'.format(self.application_url))
+
+    def test_update_view_response_override_works(self):
+        class PersonViews(ModelView):
+            ModelFactoryClass = PersonModelFactory
+            ModelFormClass = PersonForm
+            base_url_override = 'people'
+
+            @classmethod
+            def post_save_response(cls, request, record):
+                return HTTPFound(request.route_url('person',
+                                                   traverse=(record.id,)))
+            # NOTE: just overriding the function doesnt work
+            post_update_response_callback = post_save_response
+
+        person = Person(name='Mrs Smith', age=25)
+        SASession.add(person)
+        SASession.flush()
+
+        PersonViews.include(self.config)
+        testapp = TestApp(self.config.make_wsgi_app())
+
+        request = testing.DummyRequest()
+        params = {
+            'name': 'Mrs Jane Smith',
+            'age': '22',
+            'csrf_token': request.session.get_csrf_token()}
+        url = '/people/{0}/edit'.format(person.id)
+        response = testapp.post(url, params)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location,
+                         '{0}/people/1'.format(self.application_url))
+
+    def test_delete_view_response_override_works(self):
+        class PersonViews(ModelView):
+            ModelFactoryClass = PersonModelFactory
+            ModelFormClass = PersonForm
+            base_url_override = 'people'
+
+            @classmethod
+            def post_save_response(cls, request, record):
+                return HTTPFound(request.route_url('person',
+                                                   traverse=('2', 'edit')))
+            post_delete_response_callback = post_save_response
+
+        person = Person(name='Mr Smith', age=25)
+        SASession.add(person)
+        SASession.flush()
+
+        PersonViews.include(self.config)
+        testapp = TestApp(self.config.make_wsgi_app())
+
+        request = testing.DummyRequest()
+        params = {'csrf_token': request.session.get_csrf_token()}
+        url = '/people/{0}/delete'.format(person.id)
+        response = testapp.post(url, params)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location,
+                         '{0}/people/2/edit'.format(self.application_url))
 
 
 class TestLogin(TestBase):
