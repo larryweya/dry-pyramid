@@ -173,7 +173,7 @@ class BaseGroup(Base):
 class ModelFactory(object):
     __name__ = ''
     __parent__ = None
-    #__base_name__ = None
+    #__route_name__ = None
 
     def __init__(self, request):
         self.request = request
@@ -197,21 +197,21 @@ class ModelFactory(object):
 
     def list_url(self, request):
         return request.route_url(
-            self.__base_name__, traverse=())
+            self.__route_name__, traverse=())
 
     def create_url(self, request):
         return request.route_url(
-            self.__base_name__, traverse=('add',))
+            self.__route_name__, traverse=('add',))
 
     def show_url(self, request, record):
-        return request.route_url(self.__base_name__, traverse=(record.id,))
+        return request.route_url(self.__route_name__, traverse=(record.id,))
 
     def update_url(self, request, record):
-        return request.route_url(self.__base_name__,
+        return request.route_url(self.__route_name__,
                                  traverse=(record.id, 'edit'))
 
     def delete_url(self, request, record):
-        return request.route_url(self.__base_name__,
+        return request.route_url(self.__route_name__,
                                  traverse=(record.id, 'delete'))
 
     @property

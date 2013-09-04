@@ -139,10 +139,10 @@ class TestModelFactory(TestBase):
         super(TestModelFactory, self).setUp()
         self.request = testing.DummyRequest()
         # this is done by ModelView on include
-        base_name = 'persons'
+        route_name = 'persons'
         base_url = 'people'
-        PersonModelFactory.__base_name__ = base_name
-        self.config.add_route(base_name, '/{0}/*traverse'.format(base_url),
+        PersonModelFactory.__route_name__ = route_name
+        self.config.add_route(route_name, '/{0}/*traverse'.format(base_url),
                               factory=PersonModelFactory)
         self.factory = PersonModelFactory(self.request)
 
