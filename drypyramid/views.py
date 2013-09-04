@@ -55,7 +55,7 @@ def model_create(model, schema, pre_save_callback=None,
                 request.session.flash(
                     u"Please fix the errors indicated below.", "error")
             else:
-                record = model.create_from_dict(dict(values))
+                record = model.create_from_dict(values)
                 if pre_save_callback:
                     pre_save_callback(request, record)
                 record.save()
@@ -90,9 +90,9 @@ def model_update(model, schema, pre_save_callback=None,
                 request.session.flash(
                     u"Please fix the errors indicated below.", "error")
             else:
-                record.update_from_dict(dict(values))
+                record.update_from_dict(values)
                 if pre_save_callback:
-                    pre_save_callback(request, record)
+                    pre_save_callback(request, record, values)
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
