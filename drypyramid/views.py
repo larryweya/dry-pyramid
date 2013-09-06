@@ -220,7 +220,7 @@ def user_login(context, request):
     referrer = request.url
     if referrer == login_url:
         # never use the login form itself as came_from
-        referrer = request.route_url('site', traverse=())
+        referrer = request.route_url('root', traverse=())
     else:
         request.response.status_code = 403
     came_from = request.session.get('came_from', referrer)
