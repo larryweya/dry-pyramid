@@ -67,7 +67,7 @@ class TestBase(unittest.TestCase):
     def setUp(self):
         self.config = testing.setUp()
         self.config.add_route('login', '/login')
-        self.config.add_route('site', '/*traverse')
+        self.config.add_route('root', '/*traverse')
         self._setup_db()
 
     def tearDown(self):
