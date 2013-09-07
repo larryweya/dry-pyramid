@@ -22,7 +22,7 @@ from .auth import pwd_context
 SASession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
 
 
-def camel_case(value):
+def prettify(value):
     return ' '.join([w.capitalize() for w in value.split('_')])
 
 
@@ -50,21 +50,9 @@ class Model(object):
     def update_from_dict(self, data):
         [setattr(self, key, data.get(key)) for key in data]
 
-    def show_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id))
-
-    def update_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id, 'edit'))
-
-    def delete_url(self, request):
-        return request.route_url(
-            'site', traverse=(self.__tablename__, self.id, 'delete'))
-
     @property
     def __prettyname__(self):
-        return camel_case(self.__name__)
+        return prettify(self.__name__)
 
 
 Base = declarative_base(cls=Model)
@@ -133,12 +121,6 @@ class BaseUser(Base):
     def check_password(self, against):
         return pwd_context.verify(against, self._password)
 
-    def update_url(self, request):
-        return request.route_url('site', traverse=('users', self.id, 'edit'))
-
-    def delete_url(self, request):
-        return request.route_url('site', traverse=('users', self.id, 'delete'))
-
     def to_dict(self):
         data = super(BaseUser, self).to_dict()
         # password can only be set, not edited
@@ -189,8 +171,9 @@ class BaseGroup(Base):
 
 
 class ModelFactory(object):
-    __name__ = None
+    __name__ = ''
     __parent__ = None
+    __route_name__ = None
 
     def __init__(self, request):
         self.request = request
@@ -204,33 +187,36 @@ class ModelFactory(object):
         else:
             record.__parent__ = self
             record.__name__ = key
-            self.on_get_item(record)
+            self.post_get_item(record)
             return record
 
-    def on_get_item(self, item):
+    def post_get_item(self, item):
         """Called after __getitem__ to manipulate the returned item e.g. attach
         ACL"""
         pass
 
-    def create_url(self, request, action_name='add'):
-        return request.route_url(
-            'site', traverse=(self.ModelClass.__tablename__, action_name))
-
     def list_url(self, request):
         return request.route_url(
-            'site', traverse=(self.ModelClass.__tablename__,))
+            self.__route_name__, traverse=())
+
+    def create_url(self, request):
+        return request.route_url(
+            self.__route_name__, traverse=('add',))
+
+    def show_url(self, request, record):
+        return request.route_url(self.__route_name__, traverse=(record.id,))
+
+    def update_url(self, request, record):
+        return request.route_url(self.__route_name__,
+                                 traverse=(record.id, 'edit'))
+
+    def delete_url(self, request, record):
+        return request.route_url(self.__route_name__,
+                                 traverse=(record.id, 'delete'))
 
     @property
     def __prettyname__(self):
-        return camel_case(self.__name__)
-
-
-class BaseUserFactory(ModelFactory):
-    ModelClass = BaseUser
-
-
-class BaseGroupFactory(ModelFactory):
-    ModelClass = BaseGroup
+        return prettify(self.__name__)
 
 
 class BaseRootFactory(object):

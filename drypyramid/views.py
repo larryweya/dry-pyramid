@@ -33,17 +33,13 @@ def model_list(model):
 
 
 def model_show(model):
-    def show(request):
-        return {'record': request.context}
+    def show(context, request):
+        return {'record': context}
     return show
 
 
-def model_create(model, schema, pre_save_callback=None,
-                 post_save_response_callback=None):
-    # todo: perhaps get the schema associated with this model here then
-    # instantiate whenever the view is called
-    #schema = model.get_schema()
-
+def model_create(model, schema, post_save_response_callback,
+                 pre_save_callback=None):
     def create(context, request):
         form = Form(schema.__call__().bind(), buttons=(
             "save", Button('reset', "Reset", 'reset')))
@@ -55,9 +51,9 @@ def model_create(model, schema, pre_save_callback=None,
                 request.session.flash(
                     u"Please fix the errors indicated below.", "error")
             else:
-                record = model.create_from_dict(values)
+                record = model.create_from_dict(dict(values))
                 if pre_save_callback:
-                    pre_save_callback(request, record)
+                    pre_save_callback(request, record, values)
                 record.save()
                 #try:
                 SASession.flush()
@@ -66,17 +62,13 @@ def model_create(model, schema, pre_save_callback=None,
                 #else:
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                if post_save_response_callback:
-                    return post_save_response_callback(request, record)
-                else:
-                    return HTTPFound(record.show_url(request))
-        csrf_token = request.session.get_csrf_token()
-        return {'csrf_token': csrf_token, 'form': form}
+                return post_save_response_callback(request, record)
+        return {'form': form}
     return create
 
 
-def model_update(model, schema, pre_save_callback=None,
-                 post_save_response_callback=None):
+def model_update(model, schema, post_save_response_callback,
+                 pre_save_callback=None):
     def update(context, request):
         record = context
         form = Form(schema.__call__().bind(pk=record.id),
@@ -90,28 +82,24 @@ def model_update(model, schema, pre_save_callback=None,
                 request.session.flash(
                     u"Please fix the errors indicated below.", "error")
             else:
-                record.update_from_dict(values)
+                record.update_from_dict(dict(values))
                 if pre_save_callback:
                     pre_save_callback(request, record, values)
                 record.save()
                 request.session.flash(
                     u"Your changes have been saved.", "success")
-                if post_save_response_callback:
-                    return post_save_response_callback(request, record)
-                else:
-                    return HTTPFound(record.show_url(request))
-        csrf_token = request.session.get_csrf_token()
-        return {'csrf_token': csrf_token, 'form': form, 'record': record}
+                return post_save_response_callback(request, record)
+        return {'form': form}
     return update
 
 
-def model_delete(factory):
+def model_delete(post_delete_response_callback):
     def delete(context, request):
         record = context
         record.delete()
         request.session.flash(
             u"The record has been deleted.", "success")
-        return HTTPFound(factory(request).list_url(request))
+        return post_delete_response_callback(request, record)
     return delete
 
 
@@ -128,77 +116,102 @@ class ModelView(object):
     ModelFormClass = None
     ModelUpdateFormClass = None
 
-    base_name_override = None
+    route_name_override = None
+    base_url_override = None
 
-    list_view_renderer = 'templates/{base_name}_list.pt'
+    list_view_renderer = 'templates/{route_name}_list.pt'
     list_view_permission = 'list'
 
-    create_view_renderer = 'templates/{base_name}_create.pt'
+    create_view_renderer = 'templates/{route_name}_create.pt'
     create_view_permission = 'create'
-    pre_create_callback = None
-    post_create_response_callback = None
 
-    show_view_renderer = 'templates/{base_name}_show.pt'
+    show_view_renderer = 'templates/{route_name}_show.pt'
     show_view_permission = 'view'
 
-    update_view_renderer = 'templates/{base_name}_update.pt'
+    update_view_renderer = 'templates/{route_name}_update.pt'
     update_view_permission = 'update'
-    pre_update_callback = None
-    post_update_response_callback = None
 
     delete_view_permission = 'delete'
-    post_delete_response_callback = None
 
-    def __init__(self, config, **kwargs):
-        ModelClass = self.ModelFactoryClass.ModelClass
-        base_name = self.base_name_override if\
-            self.base_name_override is not None else\
-            ModelClass.__tablename__
+    @classmethod
+    def get_route_name(cls):
+        return cls.route_name_override if\
+            cls.route_name_override is not None else\
+            cls.ModelFactoryClass.ModelClass.__tablename__
 
-        if 'list' in self.enabled_views:
+    @classmethod
+    def get_base_url(cls):
+        return cls.base_url_override if\
+            cls.base_url_override is not None else\
+            cls.ModelFactoryClass.ModelClass.__tablename__
+
+    @classmethod
+    def include(cls, config):
+        ModelClass = cls.ModelFactoryClass.ModelClass
+        route_name = cls.get_route_name()
+        base_url = cls.get_base_url()
+        cls.ModelFactoryClass.__route_name__ = route_name
+
+        config.add_route('{0}'.format(route_name),
+                         '/{0}/*traverse'.format(base_url),
+                         factory=cls.ModelFactoryClass)
+
+        if 'list' in cls.enabled_views:
             config.add_view(model_list(ModelClass),
-                            context=self.ModelFactoryClass,
-                            route_name='site',
-                            renderer=self.list_view_renderer.format(
-                                base_name=base_name),
-                            permission=self.list_view_permission)
+                            context=cls.ModelFactoryClass,
+                            route_name=route_name,
+                            renderer=cls.list_view_renderer.format(
+                                route_name=route_name),
+                            permission=cls.list_view_permission)
 
-        if 'create' in self.enabled_views:
-            config.add_view(model_create(ModelClass, self.ModelFormClass),
-                            context=self.ModelFactoryClass,
-                            route_name='site', name='add',
-                            renderer=self.create_view_renderer.format(
-                                base_name=base_name),
-                            permission=self.create_view_permission)
+        if 'create' in cls.enabled_views:
+            config.add_view(model_create(ModelClass, cls.ModelFormClass,
+                                         cls.post_create_response_callback),
+                            context=cls.ModelFactoryClass,
+                            route_name=route_name, name='add',
+                            renderer=cls.create_view_renderer.format(
+                                route_name=route_name),
+                            permission=cls.create_view_permission)
 
-        if 'show' in self.enabled_views:
+        if 'show' in cls.enabled_views:
             config.add_view(model_show(ModelClass),
                             context=ModelClass,
-                            route_name='site',
-                            renderer=self.show_view_renderer.format(
-                                base_name=base_name),
-                            permission=self.show_view_permission)
+                            route_name=route_name,
+                            renderer=cls.show_view_renderer.format(
+                                route_name=route_name),
+                            permission=cls.show_view_permission)
 
-        if 'update' in self.enabled_views:
-            config.add_view(model_update(ModelClass, self.ModelUpdateFormClass
-                            if self.ModelUpdateFormClass
-                            else self.ModelFormClass),
-                            context=ModelClass, route_name='site', name='edit',
-                            renderer=self.update_view_renderer.format(
-                                base_name=base_name),
-                            permission=self.update_view_permission)
+        if 'update' in cls.enabled_views:
+            config.add_view(model_update(ModelClass, cls.ModelUpdateFormClass
+                            if cls.ModelUpdateFormClass
+                            else cls.ModelFormClass,
+                                         cls.post_update_response_callback),
+                            context=ModelClass, route_name=route_name,
+                            name='edit',
+                            renderer=cls.update_view_renderer.format(
+                                route_name=route_name),
+                            permission=cls.update_view_permission)
 
-        if 'delete' in self.enabled_views:
-            config.add_view(model_delete(self.ModelFactoryClass),
-                            context=ModelClass, route_name='site',
+        if 'delete' in cls.enabled_views:
+            config.add_view(model_delete(cls.post_delete_response_callback),
+                            context=ModelClass, route_name=route_name,
                             name='delete',
-                            permission=self.delete_view_permission,
+                            permission=cls.delete_view_permission,
                             request_method='POST', check_csrf=True)
 
     @classmethod
-    def get_model_update_form_class(cls):
-        return cls.ModelUpdateFormClass if cls.ModelUpdateFormClass\
-            else cls.ModelFormClass
+    def post_save_response(cls, request, record):
+        return HTTPFound(request.route_url(cls.get_route_name(),
+                                           traverse=(record.id, 'edit')))
+
+    @classmethod
+    def post_delete_response(cls, request, record):
+        return HTTPFound(request.route_url(cls.get_route_name(),
+                                           traverse=()))
+
+    post_create_response_callback = post_save_response
+    post_update_response_callback = post_save_response
+    post_delete_response_callback = post_delete_response
 
 
 @check_post_csrf
@@ -207,7 +220,7 @@ def user_login(context, request):
     referrer = request.url
     if referrer == login_url:
         # never use the login form itself as came_from
-        referrer = request.route_url('site', traverse=())
+        referrer = request.route_url('root', traverse=())
     else:
         request.response.status_code = 403
     came_from = request.session.get('came_from', referrer)
