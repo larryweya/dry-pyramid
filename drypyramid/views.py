@@ -89,7 +89,7 @@ def model_update(model, schema, post_save_response_callback,
                 request.session.flash(
                     u"Your changes have been saved.", "success")
                 return post_save_response_callback(request, record)
-        return {'form': form}
+        return {'form': form, 'record': record}
     return update
 
 
