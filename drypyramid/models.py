@@ -187,6 +187,7 @@ class ModelFactory(object):
         else:
             record.__parent__ = self
             record.__name__ = key
+            record.request = self.request
             self.post_get_item(record)
             return record
 
