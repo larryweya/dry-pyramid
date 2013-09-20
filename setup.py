@@ -24,7 +24,7 @@ requires = [
 
 setup(
     name='drypyramid',
-    version='0.2.2',
+    version='0.2.3',
     description='Package that sits atop pyramid and trys to be dry',
     long_description=README + '\n\n' + CHANGES,
     classifiers=[

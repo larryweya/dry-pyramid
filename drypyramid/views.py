@@ -146,15 +146,20 @@ class ModelView(object):
             cls.ModelFactoryClass.ModelClass.__tablename__
 
     @classmethod
-    def include(cls, config):
+    def setup_model(cls, config):
+        cls.ModelFactoryClass.__route_name__ = cls.get_route_name()
+
+    @classmethod
+    def setup_route(cls, config):
+        config.add_route('{0}'.format(cls.get_route_name()),
+                         '/{0}/*traverse'.format(cls.get_base_url()),
+                         factory=cls.ModelFactoryClass)
+
+    @classmethod
+    def setup_views(cls, config):
         ModelClass = cls.ModelFactoryClass.ModelClass
         route_name = cls.get_route_name()
         base_url = cls.get_base_url()
-        cls.ModelFactoryClass.__route_name__ = route_name
-
-        config.add_route('{0}'.format(route_name),
-                         '/{0}/*traverse'.format(base_url),
-                         factory=cls.ModelFactoryClass)
 
         if 'list' in cls.enabled_views:
             config.add_view(model_list(ModelClass),
@@ -198,6 +203,12 @@ class ModelView(object):
                             name='delete',
                             permission=cls.delete_view_permission,
                             request_method='POST', check_csrf=True)
+
+    @classmethod
+    def include(cls, config):
+        cls.setup_model(config)
+        cls.setup_route(config)
+        cls.setup_views(config)
 
     @classmethod
     def post_save_response(cls, request, record):
